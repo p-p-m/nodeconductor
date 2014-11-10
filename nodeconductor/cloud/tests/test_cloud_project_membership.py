@@ -153,3 +153,45 @@ class ProjectCloudApiPermissionTest(UrlResolverMixin, test.APITransactionTestCas
             'cloud': self._get_cloud_url(cloud),
             'project': self._get_project_url(project)
         }
+
+
+class TestCloudProjectMembershipSshKeys(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.users = {
+            'owner': structure_factories.UserFactory(),
+            'admin': structure_factories.UserFactory(),
+            'manager': structure_factories.UserFactory(),
+            'group_manager': structure_factories.UserFactory(),
+            'no_role': structure_factories.UserFactory(),
+            'not_connected': structure_factories.UserFactory(),
+        }
+
+        # a single customer
+        self.customer = structure_factories.CustomerFactory()
+        self.customer.add_user(self.users['owner'], CustomerRole.OWNER)
+
+        # that has 3 users connected: admin, manager, group_manager
+        self.connected_project = structure_factories.ProjectFactory(customer=self.customer)
+        self.connected_project.add_user(self.users['admin'], ProjectRole.ADMINISTRATOR)
+        self.connected_project.add_user(self.users['manager'], ProjectRole.MANAGER)
+        project_group = structure_factories.ProjectGroupFactory()
+        project_group.projects.add(self.connected_project)
+        project_group.add_user(self.users['group_manager'], ProjectGroupRole.MANAGER)
+
+        # has defined a cloud and connected cloud to a project
+        self.cloud = factories.CloudFactory(customer=self.customer)
+        self.membership = factories.CloudProjectMembershipFactory(project=self.connected_project, cloud=self.cloud)
+
+    def test_ssh_public_key_is_added_when_user_ssh_public_key_is_added_to_user(self):
+        from nodeconductor.core.models import SshPublicKey
+        key = SshPublicKey.objects.create(
+            user=self.users['manager'],
+            public_key="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDURXDP5YhOQUYoDuTxJ84DuzqMJYJqJ8+SZT28"
+                       "TtLm5yBDRLKAERqtlbH2gkrQ3US58gd2r8H9jAmQOydfvgwauxuJUE4eDpaMWupqquMYsYLB5f+vVGhdZbbzfc6DTQ2rY"
+                       "dknWoMoArlG7MvRMA/xQ0ye1muTv+mYMipnd7Z+WH0uVArYI9QBpqC/gpZRRIouQ4VIQIVWGoT6M4Kat5ZBXEa9yP+9du"
+                       "D2C05GX3gumoSAVyAcDHn/xgej9pYRXGha4l+LKkFdGwAoXdV1z79EG1+9ns7wXuqMJFHM2KDpxAizV0GkZcojISvDwuh"
+                       "vEAFdOJcqjyyH4FOGYa8usP1 test")
+        from nodeconductor.cloud.backend import get_openstack_backend
+        backend = get_openstack_backend()
+        self.assertItemsEqual(backend.calls, [('push_ssh_public_key', self.membership, key)])

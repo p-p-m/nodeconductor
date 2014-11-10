@@ -33,3 +33,5 @@ NODE_CONDUCTOR = {
         },
     ),
 }
+
+OPENSTACK_BACKEND = 'nodeconductor.cloud.tests.backends.MockedOpenstackBackend'

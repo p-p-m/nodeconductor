@@ -1,3 +1,7 @@
+from django.conf import settings
+
+from nodeconductor.core import utils
+
 
 class CloudBackendError(Exception):
     """
@@ -23,3 +27,7 @@ class AbstractCloudBackend(object):
 
     def pull_flavors(self, membership):
         raise NotImplementedError()
+
+
+def get_openstack_backend():
+    return utils.import_from_string(settings.OPENSTACK_BACKEND)()
